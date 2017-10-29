@@ -14,6 +14,7 @@ max_code_execution_time = 15
 code_executor = None
 
 side_effects = []
+test_results = []
 curr_execution_id = None
 curr_input_webhook_url = None
 
@@ -35,6 +36,10 @@ def recv_matplotlib( sender, mimetype, content):
     side_effects.append( {'stream': 'matplotlib', 'mimetype': mimetype, 'content': base64.b64encode( content).decode('utf-8')})
 
 
+def recv_test_result( sender, content, result):
+    test_results.append( {'content': content, 'result': result})
+
+
 def input_handler( prompt):
     global side_effects
 
@@ -52,18 +57,21 @@ def input_handler( prompt):
 
 @post('/code-requests/<execution_id>')
 def new_code_request( execution_id):
-    global side_effects, curr_execution_id, curr_input_webhook_url, last_activity_time, code_executor
+    global side_effects, curr_execution_id, curr_input_webhook_url, last_activity_time, code_executor, test_results
 
     side_effects = []
+    test_results = []
     curr_execution_id = execution_id
-    curr_input_webhook_url = request.json['input_webhook']
 
+    curr_input_webhook_url = request.json.get('input_webhook', None)
     code = request.json['code']
-    code_executor.exec_code( code)
+    tests = request.json.get('tests', [])
+
+    has_error = code_executor.exec_code( code, tests)
 
     last_activity_time = time.time()
 
-    return {'side_effects': side_effects}
+    return {'output': side_effects, 'test_results': test_results, 'has_error': has_error}
 
 
 @get('/keepalive')
@@ -101,3 +109,4 @@ def init_kernel(ip_address='127.0.0.1', port=6699, sm=True, pi=5, it=6, mcet=15)
 blinker_signal('plutoid::stdout').connect(recv_stdout)
 blinker_signal('plutoid::stderr').connect(recv_stderr)
 blinker_signal('plutoid::matplotlib').connect(recv_matplotlib)
+blinker_signal('plutoid::test_result').connect(recv_test_result)
