@@ -38,7 +38,7 @@ def setup_logging(verbose, logdir):
 
 
 @click.command()
-@click.option('--ip-address', default='127.0.0.1')
+@click.option('--ip-address', default='0.0.0.0')
 @click.option('--port', default=6699)
 @click.option('--verbose', is_flag=True)
 @click.option('--logdir')

@@ -95,7 +95,7 @@ def shutdown():
     os._exit(0)
 
 
-def init_kernel(ip_address='127.0.0.1', port=6699, sm=True, pi=5, it=6, mcet=15):
+def init_kernel(ip_address='0.0.0.0', port=6699, sm=True, pi=5, it=6, mcet=15):
     global session_mode, ping_interval, input_timeout, max_code_execution_time, code_executor
     session_mode = sm
     ping_interval = pi
