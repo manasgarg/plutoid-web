@@ -6,19 +6,18 @@ import requests
 import json
 import os
 import base64
+from .monitor import init_monitor, CodeExecutionTimeExceeded
+from .logger import log
+
 
 session_mode = True
-ping_interval = 5
 input_timeout = 6
-max_code_execution_time = 15
 code_executor = None
 
 side_effects = []
 test_results = []
 curr_execution_id = None
 curr_input_webhook_url = None
-
-last_activity_time = time.time()
 
 
 def recv_stdout( sender, content):
@@ -29,6 +28,8 @@ def recv_stdout( sender, content):
 
 
 def recv_stderr( sender, content):
+    log('kernel', {'type': 'code_exec_error', 'content': content})
+
     side_effects.append( {'stream': 'stderr', 'content': content})
 
 
@@ -67,42 +68,42 @@ def new_code_request( execution_id):
     code = request.json['code']
     tests = request.json.get('tests', [])
 
-    has_error = code_executor.exec_code( code, tests)
+    log('kernel', {'type': 'code_exec_req', 'code': code, 'tests': tests})
+    exc = code_executor.exec_code( code, tests)
+    if exc:
+        has_error = True
+        if isinstance(exc) == CodeExecutionTimeExceeded:
+            side_effects.append({'stream': 'stderr', 'content': 'Code was terminated because it was executing for too long.'})
+    else:
+        has_error = False
 
-    last_activity_time = time.time()
+    log('kernel', {'type': 'code_exec_resp', 'exception': str(exc)})
 
     return {'output': side_effects, 'test_results': test_results, 'has_error': has_error}
 
 
 @get('/keepalive')
 def keepalive():
-    global last_activity_time 
-    last_activity_time = time.time()
+    log('kernel', {'type': 'keep_alive'})
+    blinker_signal('plutoidweb::keep_alive').send('plutoidweb')
 
     return ''
 
-
-@post('/inactivity-check')
-def inactivity_check():
-    global last_activity_time
-    if time.time() - last_activity_time > 2*ping_interval:
-        os._exit(0)
-
-    return ''
 
 @post('/shutdown')
 def shutdown():
     os._exit(0)
 
 
-def init_kernel(ip_address='0.0.0.0', port=6699, sm=True, pi=5, it=6, mcet=15):
+def init_kernel(ip_address='0.0.0.0', port=6699, sm=True, pi=15, it=6, mcet=15):
     global session_mode, ping_interval, input_timeout, max_code_execution_time, code_executor
     session_mode = sm
-    ping_interval = pi
     input_timeout = it
-    max_code_execution_time = mcet
 
-    code_executor = Executor( input_handler, max_code_execution_time)
+    code_executor = Executor( input_handler)
+    init_monitor(mcet, pi)
+
+    log('kernel', {'type': 'server_init', 'ip': ip_address, 'port': port})
     run(host=ip_address, port=port)
 
 
