@@ -73,7 +73,7 @@ def new_code_request( execution_id):
     if exc:
         has_error = True
         if isinstance(exc, CodeExecutionTimeExceeded):
-            side_effects.append({'stream': 'stderr', 'content': 'Code was terminated because it was executing for too long.'})
+            side_effects.append({'stream': 'stderr', 'content': 'Code was terminated because it executed for too long.'})
     else:
         has_error = False
 
